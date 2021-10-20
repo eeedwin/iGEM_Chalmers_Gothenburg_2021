@@ -1,0 +1,68 @@
+---
+title: "RBSanalysis"
+author: "Edwin Eliasson"
+date: "9/6/2021"
+output: html_document
+---
+
+## Load libraries
+```{r, echo=FALSE}
+library(flowCore)
+library(tidyverse)
+library(viridis)
+library(hrbrthemes)
+library(hexbin)
+library(data.table)
+library(ggpubr)
+
+filter = dplyr::filter
+select = dplyr::select
+```
+
+## Load data
+
+Load CSV datafile
+```{r,warning=FALSE}
+
+metadata <- read.csv("../Data/RBS3.0.csv", sep = ";")
+
+glimpse(metadata)
+
+```
+
+Formating the data
+```{r}
+tbl_meta =
+  metadata %>% 
+  mutate(Raw.Data = as.numeric(Raw.Data))
+
+head(tbl_meta)
+
+glimpse(tbl_meta)
+```
+
+
+
+```{r}
+metadata %>% 
+  filter(Strain != "Blank") %>% 
+  mutate(Strain = factor(Strain,levels = c("Weak","Med","Str","Positive", "Negative"),ordered = TRUE)) %>%
+  ggplot(aes(x = Strain, y = Raw.Data, fill = Strain)) + 
+  geom_boxplot() +
+  geom_point() +
+
+  xlab("RBS") +
+  ylab("Fluorecense (a.u.)") +
+  theme_bw()
+```
+```{r}
+metadata %>% 
+  filter(Strain != "Blank") %>% 
+  mutate(Strain = factor(Strain,levels = c("Weak","Med","Str","Positive", "Negative"),ordered = TRUE)) %>%
+  barplot(metadata, group = Strain)
+ 
+  
+```
+
+
+

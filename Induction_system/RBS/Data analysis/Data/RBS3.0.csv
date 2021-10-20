@@ -1,0 +1,17 @@
+Pos;Strain;Raw.Data;Avg;Replicate
+A01;Weak;559;432;1
+A02;Med;1419;1292;1
+A03;Str;278;151;1
+A04;Positive;46864;51555;1
+A05;Negative;240;125;1
+A06;Blank;127;;1
+B01;Weak;490;363;2
+B02;Med;1446;1319;2
+B03;Str;307;180;2
+B04;Positive;57940;51555;2
+B05;Negative;263;125;2
+C01;Weak;548;421;3
+C02;Med;1928;1801;3
+C03;Str;285;158;3
+C04;Positive;50243;51555;3
+C05;Negative;254;125;3

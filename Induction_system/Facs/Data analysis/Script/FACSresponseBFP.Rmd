@@ -1,0 +1,903 @@
+---
+title: "FACSresponseBFP"
+author: "Edwin Eliasson"
+date: "10/14/2021"
+output: html_document
+---
+
+## Load libraries
+```{r, echo=FALSE}
+library(flowCore)
+library(tidyverse)
+library(viridis)
+library(hrbrthemes)
+library(hexbin)
+```
+
+## Set working directory 
+```{r,warning=FALSE}
+setwd("/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/Facs/Data analysis/data/FACS_2021_09_09_CSV/")
+```
+
+## Load data
+
+#All data is in csv format in the "../data/2021-08-27_at_08-43-55am" folder
+```{r,warning=FALSE}
+filenames = list.files(path = "../data/FACS_2021_09_09_CSV/Sample Group - 1 - Gate A/",full.names = T)
+
+# Extract plate position from filename
+sample_name = filenames %>% gsub("_Data Source - 1_A.csv","",.) %>% gsub("le_Group_1_","",.) %>% gsub(".*am.","",.)
+
+
+# Loop through and merge all files into a big tibble
+tbl = tibble()
+for (i in 1:length(filenames)) {
+  tbl_file = fread(filenames[i]) %>% mutate(POS = sample_name[i])
+  tbl = rbind(tbl,tbl_file)
+}
+
+rm(tbl_file)
+```
+
+## Pre-procesing
+
+#Replacement of hypgen (-) in columns & removal of defected index column
+```{r}
+
+names(tbl) <- gsub("\\-",".", names(tbl))
+names(tbl) <- gsub("\\.A.Compensated","", names(tbl))
+names(tbl) <- gsub("\\Pacific Blue","BFP", names(tbl))
+tbl$Index = NULL
+
+glimpse(tbl)
+```
+
+
+## Filter out cells with negative intensity and log transform
+```{r}
+
+tbl =
+  tbl %>%
+  filter(EGFP > 0) %>%
+  mutate(log_EGFP = log10(EGFP+1)) %>%
+  filter(miRFP670 > 0) %>% 
+  mutate(log_miRFP670 = log10(miRFP670+1)) %>%
+  filter(BFP > 0) %>%
+  mutate(log_BFP = log10(BFP+1))
+  
+head(tbl)
+```
+
+#Add index for cell
+```{r}
+tbl <- tbl %>% mutate(cell_id = 1:nrow(tbl))
+```
+
+
+
+#Convert into tidy tibble and add channel info
+```{r}
+tbl_tidy =
+  tbl %>% 
+  pivot_longer(-c(POS,TIME,cell_id),names_to = "CHANNEL",values_to = "INTENSITY") 
+  #mutate(SCALE = ifelse(grepl("Lin",CHANNEL),"lin","log")) %>% 
+  
+glimpse(tbl_tidy)
+```
+
+#Format meta data
+```{r}
+tbl_meta = 
+  fread(file = "../data/plate_map.csv") %>% 
+  mutate(DOSE = as.character(DOSE)) %>% 
+  mutate(DOSE_1 = as.character(DOSE_1)) %>% 
+  mutate(DOSE_2 = as.character(DOSE_2)) %>%
+  mutate(DOSE_3 = as.character(DOSE_3))
+```
+
+
+#Merge meta data with FACS meta data
+```{r}
+tbl_tidy =
+  tbl_tidy %>% 
+  full_join(tbl_meta,by = "POS")
+
+head(tbl_tidy)
+```
+
+#Matrix with flipped columns
+```{r}
+tbl_red_green_blue =
+
+tbl_tidy %>% 
+  filter(CHANNEL %in% c("log_EGFP", "log_miRFP670","log_BFP")) %>% 
+  pivot_wider(names_from = CHANNEL, values_from = INTENSITY)
+
+glimpse(tbl_red_green_blue)
+```
+
+### Single plasmid TETON ###
+
+#TetON violin plot, log scale
+```{r,fig.width=8,fig.height=5}
+
+p_violoin_tet_BFP =
+tbl_tidy %>% 
+  filter(STRAIN %in% c("Tet")) %>% 
+  filter(NUM.IND %in% c("1")) %>% 
+  filter(CHANNEL %in% c("log_BFP")) %>% 
+  ggplot(aes(x = DOSE_1,y = INTENSITY,group = DOSE_1, fill = DOSE_1)) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  theme_bw() +
+  stat_compare_means(ref.group = "0",label = "p.signif") +
+  ggtitle("Violin plot of BFP - Tetracyclin plasmid") +
+  xlab("Tetracyclin (µM)") +
+  ylab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_violoin_tet_BFP
+```
+
+#BFP expression depending of Tetracyclin conc.
+```{r}
+p_density_tet_BFP_diff_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet")) %>% 
+  ggplot(aes(log_BFP, color = DOSE_1, fill = DOSE_1)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE_1, INDUCER_1),nrow = 2) +
+  scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression - Tetracyclin plasmid") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_tet_BFP_diff_plot
+
+```
+
+#RFP expression depending of Tetracyclin conc.in ONE plot
+```{r}
+p_density_tet_BFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet")) %>% 
+  ggplot(aes(log_BFP, color = DOSE_1, fill = DOSE_1)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  
+  scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression - Tetracyclin plasmid") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_tet_BFP_same_plot
+
+```
+
+LINCOLN GFP expression depending of EST
+```{r}
+p_density_tet_BFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet")) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_BFP, y = DOSE_1, fill = stat(x))) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis_c(name = "Expression", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for BFP expression - Tetracyclin plasmid") +
+  ylab("DOSE (µM)") +
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_tet_BFP_lincoln
+
+```
+
+
+
+### Double plasmid Tetracycline & Estradiol ###
+
+
+#BFP & GFP violin expression
+```{r}
+p_violin_Tet.est_BFP_GFP =
+
+tbl_tidy %>% 
+  filter(STRAIN %in% c("Tet.Est")) %>%
+  filter(NUM.IND %in% c("2")) %>% 
+  filter(CHANNEL %in% c("log_BFP","log_EGFP")) %>% 
+  
+  ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  stat_compare_means(ref.group = "0",label = "p.signif") +
+  ggtitle("Violin plot of BFP & GFP intensity -
+Tetracyclin & Estradiol plasmids") +
+  facet_wrap(vars(CHANNEL, STRAIN)) +
+  xlab("Tetracyclin and Estradiol (µM)") +
+  ylab("Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_violin_Tet.est_BFP_GFP
+
+```
+
+#BFP expression depending of TET conc.
+```{r}
+p_density_Tet.est_BFP_all_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","100","500","1000"),ordered = TRUE)) %>%
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.est_BFP_all_plot 
+```
+
+BFP expression depending of Tet conc.
+```{r}
+p_density_Tet.est_BFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","100","500","1000"),ordered = TRUE)) %>%
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  #facet_wrap(vars(DOSE),nrow = 3) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.est_BFP_same_plot 
+```
+
+
+LINCOLN BFP expression depending of 
+```{r}
+p_density_Tet.est_BFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_BFP, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Expression", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for BFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.est_BFP_lincoln
+```
+
+## GFP ##
+
+#GFP expression depending of EST conc.
+```{r}
+p_density_Tet.est_GFP_all_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","100","500","1000"),ordered = TRUE)) %>%
+  ggplot(aes(log_EGFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for GFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("Density") + 
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.est_GFP_all_plot 
+```
+
+
+GFP expression depending of EST conc.
+```{r}
+p_density_Tet.est_GFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  
+  ggplot(aes(log_EGFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for GFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("Density") + 
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.est_GFP_same_plot 
+```
+
+
+LINCOLN GFP expression depending of 
+```{r}
+p_density_Tet.est_GFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Est")) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_EGFP, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Expression", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for GFP expression -
+Tetracyclin & Estradiol plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.est_GFP_lincoln
+```
+
+
+
+
+
+### Double plasmid Tetracycline & Copper ###
+
+
+#BFP & RFP violin expression
+```{r}
+p_violin_Tet.cup_BFP_RFP =
+
+tbl_tidy %>% 
+  filter(STRAIN %in% c("Tet.Cup")) %>%
+  filter(NUM.IND %in% c("2")) %>% 
+  filter(CHANNEL %in% c("log_BFP","log_miRFP670")) %>% 
+  
+  ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  stat_compare_means(ref.group = "0",label = "p.signif") +
+  ggtitle("Violin plot of BFP & RFP intensity -
+Tetracyclin & Copper plasmids") +
+  facet_wrap(vars(CHANNEL, STRAIN)) +
+  xlab("Tetracyclin and Copper (µM)") +
+  ylab("Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_violin_Tet.cup_BFP_RFP
+
+```
+
+#BFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup_BFP_all_plots =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup_BFP_all_plots 
+```
+
+BFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup_BFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","100","500","1000"),ordered = TRUE)) %>%
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  #facet_wrap(vars(DOSE),nrow = 3) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup_BFP_same_plot 
+```
+
+
+LINCOLN BFP expression depending of 
+```{r}
+p_density_Tet.cup_BFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_BFP, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Expression", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for BFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.cup_BFP_lincoln
+```
+
+
+## RFP ##
+
+#RFP expression depending of CUP conc.
+```{r}
+p_density_Tet.cup_RFP_all_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+
+  ggplot(aes(log_miRFP670, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for RFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("Density") + 
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup_RFP_all_plot 
+```
+
+
+GFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup_RFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+  
+  ggplot(aes(log_miRFP670, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for RFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("Density") + 
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup_RFP_same_plot 
+```
+
+
+LINCOLN GFP expression depending of 
+```{r}
+p_density_Tet.cup_RFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup")) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_miRFP670, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Intesity (a.u.)", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for RFP expression -
+Tetracyclin & Copper plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.cup_RFP_lincoln
+```
+
+
+
+
+###### Three plasmids ########3
+
+
+
+#BFP & RFP & GFP violin expression
+```{r}
+p_violin_Tet.cup.est =
+
+tbl_tidy %>% 
+  filter(STRAIN %in% c("Tet.Cup.Est")) %>%
+  filter(NUM.IND %in% c("3")) %>% 
+  filter(CHANNEL %in% c("log_BFP","log_EGFP", "log_miRFP670")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  #stat_compare_means(ref.group = "0",label = "p.signif") +
+  ggtitle("Violin plot of BFP, GFP & RFP intensity -
+Tetracyclin & Copper plasmids") +
+  facet_wrap(vars(CHANNEL, STRAIN)) +
+  xlab("Tetracyclin, Estradiol & Copper (µM)") +
+  ylab("Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_violin_Tet.cup.est
+
+```
+
+
+#### BFP ###
+
+#BFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup.est_BFP_all_plots =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_BFP_all_plots 
+```
+
+#BFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup.est_BFP_same_plots =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(aes(log_BFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  #facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for BFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_BFP_same_plots 
+```
+
+
+LINCOLN BFP expression depending of 
+```{r}
+p_density_Tet.cup.est_BFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+   mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_BFP, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Intesity (a.u.)", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for BFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("BFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.cup.est_BFP_lincoln
+```
+
+
+### RFP ###
+
+
+
+#RFP expression depending of CUP conc.
+```{r}
+p_density_Tet.cup.est_RFP_all_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(aes(log_miRFP670, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for RFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_RFP_all_plot 
+```
+
+
+RFP expression depending of Tet conc.
+```{r}
+p_density_Tet.cup.est_RFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(aes(log_miRFP670, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for RFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_RFP_same_plot 
+```
+
+
+LINCOLN RFP expression depending of 
+```{r}
+p_density_Tet.cup.est_RFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
+  ggplot(lincoln_weather, mapping = aes(x = log_miRFP670, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Intesity (a.u.)", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for RFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("RFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.cup.est_RFP_lincoln
+```
+
+
+
+### GFP ###
+
+
+
+#GFP expression depending of EST conc.
+```{r}
+p_density_Tet.cup.est_GFP_all_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>%
+  ggplot(aes(log_EGFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  facet_wrap(vars(DOSE),nrow = 1) +
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for GFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_GFP_all_plot 
+```
+
+
+GFP expression depending of EST conc.
+```{r}
+p_density_Tet.cup.est_GFP_same_plot =
+  tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>%
+  ggplot(aes(log_EGFP, color = DOSE, fill = DOSE)) +
+  geom_density(alpha = 0.5, adjust = 0.0001) +
+  
+  scale_color_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), 
+  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  
+  theme_bw() +
+  ggtitle ("Density plots for GFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("Density") + 
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+
+p_density_Tet.cup.est_GFP_same_plot 
+```
+
+
+LINCOLN GFP expression depending of 
+```{r}
+p_density_Tet.cup.est_GFP_lincoln =
+ tbl_red_green_blue %>% 
+  filter(STRAIN == c("Tet.Cup.Est")) %>% 
+  mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>%
+  ggplot(lincoln_weather, mapping = aes(x = log_EGFP, y = DOSE, fill = stat(x))) +
+  geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
+  scale_fill_viridis_c(name = "Intesity (a.u.)", option = "magma") +
+  theme_bw() +
+  ggtitle("Density plots for GFP expression -
+Tetracyclin, Estradiol & Copper plasmids") +
+  ylab("DOSE (µM)") +
+  xlab("GFP Intesity (a.u.)") +
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
+
+p_density_Tet.cup.est_GFP_lincoln
+```
+
+
+
+```{r}
+
+
+p_violoin_tet_BFP
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_tet_BFP.png")
+
+p_density_tet_BFP_diff_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_tet_BFP_diff_plot.png")
+
+p_density_tet_BFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_tet_BFP_same_plot.png")
+
+p_density_tet_BFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_tet_BFP_lincoln.png")
+
+p_violin_Tet.est_BFP_GFP
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_Tet.est_BFP_GFP.png")
+
+p_density_Tet.est_BFP_all_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_BFP_all_plot.png")
+
+p_density_Tet.est_BFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_BFP_same_plot.png")
+
+p_density_Tet.est_BFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_BFP_lincoln.png")
+
+p_density_Tet.est_GFP_all_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_GFP_all_plot.png")
+
+p_density_Tet.est_GFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_GFP_same_plot.png")
+
+p_density_Tet.est_GFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.est_GFP_lincoln.png")
+
+p_violin_Tet.cup_BFP_RFP
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_Tet.cup_BFP_RFP.png")
+
+p_density_Tet.cup_BFP_all_plots
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_BFP_all_plots.png")
+
+p_density_Tet.cup_BFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_BFP_same_plot.png")
+
+p_density_Tet.cup_BFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_BFP_lincoln.png")
+
+p_density_Tet.cup_RFP_all_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_RFP_all_plot.png")
+
+p_density_Tet.cup_RFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_RFP_same_plot.png")
+
+p_density_Tet.cup_RFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup_RFP_lincoln.png")
+
+p_violin_Tet.cup.est
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_Tet.cup.est.png")
+
+p_density_Tet.cup.est_BFP_all_plots
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_BFP_all_plots.png")
+
+p_density_Tet.cup.est_BFP_same_plots
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_BFP_same_plots.png")
+
+p_density_Tet.cup.est_BFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_BFP_lincoln.png")
+
+p_density_Tet.cup.est_RFP_all_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_RFP_all_plot.png")
+
+p_density_Tet.cup.est_RFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_RFP_same_plot.png")
+
+p_density_Tet.cup.est_RFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_RFP_lincoln.png")
+
+p_density_Tet.cup.est_GFP_all_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_GFP_all_plot.png")
+
+p_density_Tet.cup.est_GFP_same_plot
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_GFP_same_plot.png")
+
+p_density_Tet.cup.est_GFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_GFP_lincoln.png")
+
+
+
+
+
+ggsave(path ="../Docs/" ,filename="plot.png")
+
+
+
+```
+
+
+
+
+
