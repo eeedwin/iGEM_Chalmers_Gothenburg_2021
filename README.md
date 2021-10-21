@@ -27,3 +27,13 @@ Contains how the data generated for the RBS (ribosome binding site) was processe
 
 ## Genome scale modeling
 Folder "Genome_scale_model" contains the matlab code and data used to run the raven and GECKO model.
+
+## RoseTTAFold
+Our protein structure prediction task was done with the help of a new generation machine learning method named RoseTTAFold, developed and trained by Baker Lab at Institute for Protein Design, University of Washington. It allows one to quickly and accurately predict protein structures based on limited information.
+
+We used RoseTTAFold to predict the protein structures of our interest. And the result of prediction is available in this GitHub repository under "RoseTTaFold" folder, presented in pdb format.
+
+To read more about RoseTTAFold, see:
+
+https://robetta.bakerlab.org/
+
