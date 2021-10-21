@@ -23,6 +23,11 @@ filter = dplyr::filter
 select = dplyr::select
 ```
 
+```{r}
+#setwd("../Induction_system/Guava results/Data analysis/scripts/")
+```
+
+
 ## Load data
 
 All data is in csv format in the "../data/2021-08-27_at_08-43-55am" folder
@@ -109,16 +114,23 @@ Violin plot RFP o Copper
 ```{r}
 
 p_violin_cup_RPF =
-  tbl_red_green %>% 
-  filter( INDUCER == c("Cup1","None")) %>% 
-  mutate(DOSE = factor(DOSE,levels = c("0","1","10","50","100"),ordered = TRUE)) %>%
-  ggplot(aes(x = DOSE, y = RED.R.HLog, color = DOSE, fill = DOSE)) +
+ 
+  tbl_tidy %>% 
+  filter(SCALE == "log") %>% 
+  filter(STRAIN %in% c("CUP","CENPK")) %>% 
+  #filter(NUM.IND %in% c("1")) %>% 
+  filter(CHANNEL %in% c("RED.R.HLog")) %>% 
+  filter(INDUCER %in% c("Cup1","None")) %>% 
+   mutate(DOSE = factor(DOSE,levels = c("0","1","10","50","100"),ordered = TRUE)) %>%
+  #mutate(DOSE = ifelse(INDUCER == "None",""))
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","1e-05","1e-04","0.001","0.01"),ordered = TRUE)) %>%
+  ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
   geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
   facet_wrap(vars(CASE_CTRL),ncol = 10) +
   scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+ stat_compare_means(ref.group = "0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of RFP intensity - Copper plasmid") +
   xlab("Copper (µM)") +
   ylab("RFP Intesity (a.u.)") +
@@ -127,6 +139,7 @@ p_violin_cup_RPF =
 p_violin_cup_RPF
 
 ```
+
 
 
 RFP expression depending of CUP conc.
@@ -197,23 +210,28 @@ p_density_cup_RFP_lincoln
 Violin plot, not as nice as the one above!
 ```{r}
 p_violin_est_GPF =
-  tbl_red_green %>% 
-  filter( INDUCER == c("Estradiol","None")) %>% 
-  ggplot(aes(x = DOSE, y = GRN.B.HLog, color = DOSE, fill = DOSE)) +
-  geom_violin(alpha = 0.5, adjust = 0.5,draw_quantiles = 0.5) +
+  tbl_tidy %>% 
+  filter(SCALE == "log") %>% 
+  filter(STRAIN %in% c("Estradiol","CENPK")) %>% 
+  #filter(NUM.IND %in% c("1")) %>% 
+  filter(CHANNEL %in% c("GRN.B.HLog")) %>% 
+  filter(INDUCER %in% c("Estradiol","None")) %>% 
+  #mutate(DOSE = ifelse(INDUCER == "None",""))
+  #mutate(DOSE_1 = factor(DOSE_1,levels = c("0","1e-05","1e-04","0.001","0.01"),ordered = TRUE)) %>%
+  ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
   facet_wrap(vars(CASE_CTRL),ncol = 10) +
   scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of GFP intensity - Estradiol plasmid") +
   xlab("Estradiol (µM)") +
-  ylab("GRP Intesity (a.u.)") +
+  ylab("GFP Intesity (a.u.)") +
   theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 
 p_violin_est_GPF
 ```
-
 
 GFP expression depending of Estradiol conc.
 ```{r}

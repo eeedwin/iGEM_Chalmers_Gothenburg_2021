@@ -12,18 +12,21 @@ library(tidyverse)
 library(viridis)
 library(hrbrthemes)
 library(hexbin)
+library(patchwork)
 ```
 
-## Set working directory 
-```{r,warning=FALSE}
-setwd("/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/Facs/Data analysis/data/FACS_2021_09_09_CSV/")
+
+```{r}
+#setwd("../Induction_system/Facs/Data analysis/Script")
 ```
+
 
 ## Load data
 
 #All data is in csv format in the "../data/2021-08-27_at_08-43-55am" folder
 ```{r,warning=FALSE}
 filenames = list.files(path = "../data/FACS_2021_09_09_CSV/Sample Group - 1 - Gate A/",full.names = T)
+
 
 # Extract plate position from filename
 sample_name = filenames %>% gsub("_Data Source - 1_A.csv","",.) %>% gsub("le_Group_1_","",.) %>% gsub(".*am.","",.)
@@ -39,6 +42,24 @@ for (i in 1:length(filenames)) {
 rm(tbl_file)
 ```
 
+#Extraion of compensated data
+```{r,warning=FALSE}
+
+filenames_comp = list.files(path = "../data/FACS_2021_09_09_CSV/Compensation Panel/",full.names = T)
+
+# Extract plate position from filename
+sample_name_comp = filenames_comp %>% gsub("_Data Source - 1_A.csv","",.) %>% gsub("le_Group_1_Compensation Panel_","",.) %>% gsub("EGFP_EGFP_A.csv","pGFP",.) %>% gsub("miRFP670_miRFP670_A.csv","pRFP",.) %>% gsub("Pacific Blue_Pacific Blue_A.csv","pBFP",.) %>% gsub("Negative Control_Negative Control_A.csv","pCENPK",.) %>% gsub(".*am.","",.)
+
+# Loop through and merge all files from compensated into a big tibble
+tbl_comp = tibble()
+for (i in 1:length(filenames_comp)) {
+  tbl_file_comp = fread(filenames_comp[i]) %>% mutate(POS = sample_name_comp[i])
+  tbl_comp = rbind(tbl_comp,tbl_file_comp)
+}
+
+rm(tbl_file_comp)
+```
+
 ## Pre-procesing
 
 #Replacement of hypgen (-) in columns & removal of defected index column
@@ -50,6 +71,17 @@ names(tbl) <- gsub("\\Pacific Blue","BFP", names(tbl))
 tbl$Index = NULL
 
 glimpse(tbl)
+```
+
+#Hypen replacemnt and name changing
+```{r}
+
+names(tbl_comp) <- gsub("\\-",".", names(tbl_comp)) 
+names(tbl_comp) <- gsub("\\Pacific Blue.A","BFP", names(tbl_comp)) 
+names(tbl_comp) <- gsub("\\EGFP.A","EGFP", names(tbl_comp)) 
+names(tbl_comp) <- gsub("\\miRFP670.A","miRFP670", names(tbl_comp)) 
+
+head(tbl_comp)
 ```
 
 
@@ -68,9 +100,27 @@ tbl =
 head(tbl)
 ```
 
+
+## Filter out cells with negative intensity and log transform ofr comp
+```{r}
+
+tbl_comp =
+  tbl_comp %>%
+  filter(EGFP > 0) %>%
+  mutate(log_EGFP = log10(EGFP+1)) %>%
+  filter(miRFP670 > 0) %>% 
+  mutate(log_miRFP670 = log10(miRFP670+1)) %>%
+  filter(BFP > 0) %>%
+  mutate(log_BFP = log10(BFP+1))
+  
+head(tbl_comp)
+```
+
+
 #Add index for cell
 ```{r}
 tbl <- tbl %>% mutate(cell_id = 1:nrow(tbl))
+tbl_comp <- tbl_comp %>% mutate(cell_id = 1:nrow(tbl_comp))
 ```
 
 
@@ -85,10 +135,31 @@ tbl_tidy =
 glimpse(tbl_tidy)
 ```
 
+
+#Convert into tidy tibble and add channel info
+```{r}
+tbl_tidy_comp =
+  tbl_comp %>% 
+  pivot_longer(-c(POS,TIME,cell_id),names_to = "CHANNEL",values_to = "INTENSITY") 
+  #mutate(SCALE = ifelse(grepl("Lin",CHANNEL),"lin","log")) %>% 
+  
+glimpse(tbl_tidy_comp)
+```
+
 #Format meta data
 ```{r}
 tbl_meta = 
   fread(file = "../data/plate_map.csv") %>% 
+  mutate(DOSE = as.character(DOSE)) %>% 
+  mutate(DOSE_1 = as.character(DOSE_1)) %>% 
+  mutate(DOSE_2 = as.character(DOSE_2)) %>%
+  mutate(DOSE_3 = as.character(DOSE_3))
+```
+
+#Format meta data
+```{r}
+tbl_meta_comp = 
+  fread(file = "../data/plate_map2.csv") %>% 
   mutate(DOSE = as.character(DOSE)) %>% 
   mutate(DOSE_1 = as.character(DOSE_1)) %>% 
   mutate(DOSE_2 = as.character(DOSE_2)) %>%
@@ -104,6 +175,29 @@ tbl_tidy =
 
 head(tbl_tidy)
 ```
+
+#Merge meta data with FACS meta data
+```{r}
+tbl_tidy_comp =
+  tbl_tidy_comp %>% 
+  full_join(tbl_meta_comp,by = "POS")
+
+head(tbl_tidy_comp)
+```
+
+#Merge tbl and tbl_comp
+```{r}
+tbl_tidy_merge =
+  tbl_tidy %>% 
+  full_join(tbl_tidy_comp)
+
+head(tbl_tidy_merge)
+```
+
+```{r}
+tbl_tidy = tbl_tidy_merge
+```
+
 
 #Matrix with flipped columns
 ```{r}
@@ -123,15 +217,16 @@ glimpse(tbl_red_green_blue)
 
 p_violoin_tet_BFP =
 tbl_tidy %>% 
-  filter(STRAIN %in% c("Tet")) %>% 
+  filter(STRAIN %in% c("Tet","CENPK")) %>% 
   filter(NUM.IND %in% c("1")) %>% 
   filter(CHANNEL %in% c("log_BFP")) %>% 
   ggplot(aes(x = DOSE_1,y = INTENSITY,group = DOSE_1, fill = DOSE_1)) +
   geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  facet_wrap(vars(CASE_CTRL),ncol = 10) +
   scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of BFP - Tetracyclin plasmid") +
   xlab("Tetracyclin (µM)") +
   ylab("BFP Intesity (a.u.)") +
@@ -139,6 +234,9 @@ tbl_tidy %>%
 
 p_violoin_tet_BFP
 ```
+
+
+
 
 #BFP expression depending of Tetracyclin conc.
 ```{r}
@@ -214,13 +312,14 @@ tbl_tidy %>%
   
   ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
   geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  
   scale_color_viridis(name = "DOSE (µM), 
   Tet/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   scale_fill_viridis(name = "DOSE (µM), 
   Tet/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0/0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of BFP & GFP intensity -
 Tetracyclin & Estradiol plasmids") +
   facet_wrap(vars(CHANNEL, STRAIN)) +
@@ -393,7 +492,7 @@ tbl_tidy %>%
   Tet/Cup", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0/0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of BFP & RFP intensity -
 Tetracyclin & Copper plasmids") +
   facet_wrap(vars(CHANNEL, STRAIN)) +
@@ -523,7 +622,6 @@ Tetracyclin & Copper plasmids") +
 p_density_Tet.cup_RFP_same_plot 
 ```
 
-
 LINCOLN GFP expression depending of 
 ```{r}
 p_density_Tet.cup_RFP_lincoln =
@@ -541,7 +639,11 @@ Tetracyclin & Copper plasmids") +
 
 p_density_Tet.cup_RFP_lincoln
 ```
+```{r,fig.width=8}
+(p_density_Tet.cup_RFP_same_plot + p_density_Tet.cup_RFP_lincoln)/(p_density_Tet.cup_RFP_same_plot + p_density_Tet.cup_RFP_lincoln)
 
+p_density_Tet.cup_RFP_same_plot/p_density_Tet.cup_RFP_lincoln
+```
 
 
 
@@ -550,31 +652,32 @@ p_density_Tet.cup_RFP_lincoln
 
 
 #BFP & RFP & GFP violin expression
-```{r}
+```{r,fig.width=12}
 p_violin_Tet.cup.est =
-
-tbl_tidy %>% 
+  tbl_tidy %>% 
   filter(STRAIN %in% c("Tet.Cup.Est")) %>%
   filter(NUM.IND %in% c("3")) %>% 
   filter(CHANNEL %in% c("log_BFP","log_EGFP", "log_miRFP670")) %>% 
   mutate(DOSE = factor(DOSE, levels = c("0/0/0", "0.5/500/0.005", "1/500/0.01"))) %>% 
   ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
   geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
-  scale_color_viridis(name = "DOSE (µM), 
-  Tet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM), 
-  Tet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  
+  scale_color_viridis(name = "DOSE (µM), \nTet/Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), \nTet/Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  #stat_compare_means(ref.group = "0",label = "p.signif") +
-  ggtitle("Violin plot of BFP, GFP & RFP intensity -
-Tetracyclin & Copper plasmids") +
-  facet_wrap(vars(CHANNEL, STRAIN)) +
-  xlab("Tetracyclin, Estradiol & Copper (µM)") +
+  stat_compare_means(ref.group = "0/0/0",label = "p.signif",method = "wilcox.test") +
+  ggtitle("Violin plot of BFP, GFP & RFP intensity - Tetracyclin & Copper plasmids") +
+  facet_wrap(vars(CHANNEL)) +
+  xlab("") +
   ylab("Intesity (a.u.)") +
-  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+  theme(aspect.ratio = 1, 
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+        axis.text.x = element_text(angle = 45,hjust = 1))
+
 
 p_violin_Tet.cup.est
+
+
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_violin_Tet.cup.est.png")
 
 ```
 
@@ -600,7 +703,8 @@ p_density_Tet.cup.est_BFP_all_plots =
 Tetracyclin, Estradiol & Copper plasmids") +
   ylab("Density") + 
   xlab("BFP Intesity (a.u.)") +
-  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+  theme(aspect.ratio = 1,
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 
 p_density_Tet.cup.est_BFP_all_plots 
 ```
@@ -799,8 +903,9 @@ p_density_Tet.cup.est_GFP_lincoln
 ```
 
 
-
+#Used for saving all of the plots to local computer! Need to be changed!
 ```{r}
+p_violin_tet_est_cup
 
 
 p_violoin_tet_BFP
@@ -896,6 +1001,13 @@ ggsave(path ="../Docs/" ,filename="plot.png")
 
 
 ```
+
+
+
+
+
+
+
 
 
 

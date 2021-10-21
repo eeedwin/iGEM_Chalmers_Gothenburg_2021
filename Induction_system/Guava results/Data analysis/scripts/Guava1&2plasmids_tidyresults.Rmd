@@ -23,7 +23,12 @@ filter = dplyr::filter
 select = dplyr::select
 ```
 
-## Load data
+#Set workdirectory
+```{r}
+#setwd("../Induction_system/Guava results/Data analysis/scripts/")
+```
+
+
 
 All data is in csv format in the "../data/2021-08-27_at_08-43-55am" folder
 ```{r,warning=FALSE}
@@ -121,7 +126,7 @@ tbl_tidy %>%
   scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of GFP intensity - Estradiol plasmid") +
   xlab("Estradiol (µM)") +
   ylab("GFP Intesity (a.u.)") +
@@ -198,7 +203,7 @@ p_density_est_GFP_lincoln_nr2
 
 Plot Cup1 (log-scale)
 ```{r,fig.width=8,fig.height=5}
-p_violoin_cup_RPF_nr2 =
+p_violin_cup_RPF_nr2 =
 tbl_tidy %>% 
   filter(SCALE == "log") %>% 
   filter(STRAIN %in% c("CUP","CENPK")) %>% 
@@ -208,18 +213,18 @@ tbl_tidy %>%
   #mutate(DOSE = ifelse(INDUCER == "None",""))
   mutate(DOSE_1 = factor(DOSE_1,levels = c("0","100","500","1000"),ordered = TRUE)) %>%
   ggplot(aes(x = DOSE_1,y = INTENSITY,group = DOSE_1,fill = DOSE_1)) +
-  geom_violin(alpha = 0.5, adjust = 0.5,draw_quantiles = 0.5) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
   facet_wrap(vars(CASE_CTRL),ncol = 10) +
   scale_color_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM)", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM)",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of RFP intensity - Copper plasmid") +
   xlab("Copper (µM)") +
   ylab("RFP Intesity (a.u.)") +
   theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 
-p_violoin_cup_RPF_nr2
+p_violin_cup_RPF_nr2
 
 ```
 
@@ -238,7 +243,7 @@ p_density_cup_RFP_all_diff_plot_nr2 =
   ggtitle ("Density plots for RFP expression - Copper plasmid") +
   ylab("Density") + 
   xlab("RFP Intesity (a.u.)") +
-  theme(aspect.ratio = 1,plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+  theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 
 p_density_cup_RFP_all_diff_plot_nr2
 ```
@@ -295,14 +300,12 @@ tbl_tidy %>%
   filter(CHANNEL %in% c("GRN.B.HLog","RED.R.HLog")) %>% 
   
   ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
-  geom_violin(alpha = 0.5, adjust = 0.5,draw_quantiles = 0.5) +
-  scale_color_viridis(name = "DOSE (µM), 
-  Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM), 
-  Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  geom_violin(alpha = 0.5, adjust = 0.0001,draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), \nCup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), \nCup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0/0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of GFP & RFP intensity - Copper & Estradiol plasmids") +
   facet_wrap(vars(CHANNEL, STRAIN)) +
   xlab("Copper and Estradiol (µM)") +
@@ -313,7 +316,7 @@ p_violin_cup.est_GFP_RFP
 
 ```
 
-```{r}
+```{r,fig.width=11}
 p_violin_cup.est_RFP =
 
 tbl_tidy %>% 
@@ -323,14 +326,12 @@ tbl_tidy %>%
   filter(CHANNEL %in% c("RED.R.HLog")) %>% 
   
   ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
-  geom_violin(alpha = 0.5, adjust = 0.5, draw_quantiles = 0.5) +
-  scale_color_viridis(name = "DOSE (µM), 
-  Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM), 
-  Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  geom_violin(alpha = 0.5, adjust = 0.0001, draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), \nCup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), \nCup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0/0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of RFP intensity - Copper & Estradiol plasmids") +
   facet_wrap(vars(CASE_CTRL,STRAIN)) +
   xlab("Copper and Estradiol (µM)") +
@@ -339,10 +340,13 @@ tbl_tidy %>%
 
 p_violin_cup.est_RFP
 
+
+#ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_cup.est_RFP.png")
+
 ```
 
 
-```{r}
+```{r, fig.width=11}
 p_violin_cup.est_GFP =
 
 tbl_tidy %>% 
@@ -352,14 +356,12 @@ tbl_tidy %>%
   filter(CHANNEL %in% c("GRN.B.HLog")) %>% 
   
   ggplot(aes(x = DOSE,y = INTENSITY,group = DOSE, fill = DOSE)) +
-  geom_violin(alpha = 0.5, adjust = 0.5, draw_quantiles = 0.5) +
-  scale_color_viridis(name = "DOSE (µM), 
-  Cup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
-  scale_fill_viridis(name = "DOSE (µM), 
-  Cup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  geom_violin(alpha = 0.5, adjust = 0.0001, draw_quantiles = 0.5) +
+  scale_color_viridis(name = "DOSE (µM), \nCup/Est",discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
+  scale_fill_viridis(name = "DOSE (µM), \nCup/Est", discrete = T,direction = -1, option = "A",begin = 0.2, end=0.8) +
   
   theme_bw() +
-  stat_compare_means(ref.group = "0",label = "p.signif") +
+  stat_compare_means(ref.group = "0/0",label = "p.signif", method = "wilcox.test") +
   ggtitle("Violin plot of GFP intensity - Copper & Estradiol plasmids") +
   facet_wrap(vars(CASE_CTRL,STRAIN)) +
   xlab("Copper and Estradiol (µM)") +
@@ -367,6 +369,8 @@ tbl_tidy %>%
   theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 
 p_violin_cup.est_GFP
+
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_cup.est_GFP.png")
 
 ```
 
@@ -498,20 +502,27 @@ p_density_cup.est_GFP_lincoln =
   geom_density_ridges_gradient(alpha = 0.1, adjust = 0.0001, scale = 3, rel_min_height = 0.01)  +
   scale_fill_viridis_c(name = "Expression", option = "magma") +
   theme_bw() +
-  ggtitle("Density plots for RFP expression - Copper & Estradiol plasmids") +
+  ggtitle("Density plots for GFP expression - Copper & Estradiol plasmids") +
   ylab("DOSE (µM)") +
   xlab("GFP Intesity (a.u.)") +
   theme(aspect.ratio = 1, plot.title = element_text(hjust = 0.5,face = "bold", size = 15))
 
-p_density_cup.est_RFP_lincoln
+p_density_cup.est_GFP_lincoln
 ```
+
+```{r,fig.width=12}
+
+p_violin_cup_RPF / p_violin_cup_RPF_nr2
+
+```
+
 
 
 
 ```{r}
 
 p_violoin_est_GPF_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_est_GPF_nr2.png")
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_est_GPF_nr2_.png")
 
 p_density_est_GPF_all_diff_plot_nr2
 ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_est_GPF_all_diff_plot_nr2.png")
@@ -559,8 +570,8 @@ ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filenam
 p_density_cup.est_GFP_all_same_plot
 ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_GFP_all_same_plot.png")
 
-p_density_cup.est_RFP_lincoln
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_RFP_lincoln.png")
+p_density_cup.est_GFP_lincoln
+ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_GFP_lincoln.png")
 
 
 

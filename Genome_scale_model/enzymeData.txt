@@ -1,0 +1,3 @@
+Rxn RxnName Reaction Gene
+TES test (S)-malate + NADP(+) <=> pyruvate + carbon dioxide + NADPH test
+tva test citrate + ATP + coenzyme A => oxaloacetate + acetyl-CoA + ADP + phosphate test
