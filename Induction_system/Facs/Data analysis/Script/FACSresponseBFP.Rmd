@@ -7,12 +7,15 @@ output: html_document
 
 ## Load libraries
 ```{r, echo=FALSE}
-library(flowCore)
+# If packages aren't installed on your system, uncomment and run this line:
+# install.packages(c("tidyverse","viridis","hexbin","patchwork","data.table","ggpubr","ggridges"))
 library(tidyverse)
 library(viridis)
-library(hrbrthemes)
 library(hexbin)
 library(patchwork)
+library(data.table)
+library(ggpubr)
+library(ggridges)
 ```
 
 
@@ -905,8 +908,6 @@ p_density_Tet.cup.est_GFP_lincoln
 
 #Used for saving all of the plots to local computer! Need to be changed!
 ```{r}
-p_violin_tet_est_cup
-
 
 p_violoin_tet_BFP
 ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_tet_BFP.png")
@@ -992,11 +993,6 @@ ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filenam
 p_density_Tet.cup.est_GFP_lincoln
 ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_Tet.cup.est_GFP_lincoln.png")
 
-
-
-
-
-ggsave(path ="../Docs/" ,filename="plot.png")
 
 
 

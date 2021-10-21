@@ -7,16 +7,14 @@ output: html_document
 
 ## Load libraries
 ```{r, echo=FALSE}
-library(flowCore)
+# If packages aren't installed on your system, uncomment and run this line:
+# install.packages(c("tidyverse","viridis","hexbin","patchwork","data.table","ggpubr","ggridges"))
 library(tidyverse)
 library(viridis)
-library(hrbrthemes)
 library(hexbin)
+library(patchwork)
 library(data.table)
 library(ggpubr)
-library(ggplot2)
-
-library(ggplot2)
 library(ggridges)
 
 filter = dplyr::filter
@@ -510,72 +508,5 @@ p_density_cup.est_GFP_lincoln =
 p_density_cup.est_GFP_lincoln
 ```
 
-```{r,fig.width=12}
-
-p_violin_cup_RPF / p_violin_cup_RPF_nr2
-
-```
-
-
-
-
-```{r}
-
-p_violoin_est_GPF_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_est_GPF_nr2_.png")
-
-p_density_est_GPF_all_diff_plot_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_est_GPF_all_diff_plot_nr2.png")
-
-p_density_est_GFP_same_plot_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_est_GFP_same_plot_nr2.png")
-
-p_density_est_GFP_lincoln_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_est_GFP_lincoln_nr2.png")
-
-p_violoin_cup_RPF_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violoin_cup_RPF_nr2.png")
-
-p_density_cup_RFP_all_diff_plot_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup_RFP_all_diff_plot_nr2.png")
-
-
-p_density_cup_RFP_all_same_plot_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup_RFP_all_same_plot_nr2.png")
-
-p_density_cup_RFP_lincoln_nr2
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup_RFP_lincoln_nr2.png")
-
-p_violin_cup.est_GFP_RFP
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_cup.est_GFP_RFP.png")
-
-p_violin_cup.est_RFP
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_cup.est_RFP.png")
-
-p_violin_cup.est_GFP
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="violin_cup.est_GFP.png")
-
-p_density_cup.est_RFP_all_diff_plot
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_RFP_all_diff_plot.png")
-
-p_density_cup.est_RFP_all_same_plot
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_RFP_all_same_plot.png")
-
-p_density_cup.est_RFP_lincoln
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_RFP_lincoln.png")
-
-p_density_cup.est_GFP_all_diff_plot
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_GFP_all_diff_plot.png")
-
-p_density_cup.est_GFP_all_same_plot
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_GFP_all_same_plot.png")
-
-p_density_cup.est_GFP_lincoln
-ggsave(path ="/Users/Edwin/Google Drive/CHALMERS/iGEM/WetLAB/All_plots/",filename ="density_cup.est_GFP_lincoln.png")
-
-
-
-
-```
 
 
